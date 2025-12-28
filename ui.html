@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paste Data Plugin</title>
+  <style>
+     body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 16px;
+      font-size: 12px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      margin-bottom: 12px;
+      box-sizing: border-box;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .options {
+      margin-bottom: 12px;
+    }
+
+    .counters {
+      margin-bottom: 12px;
+      color: #555;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    button {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <label><strong>Paste data</strong></label>
+  <textarea id="data"></textarea>
+
+  <div class="counters">
+    <div>Data rows: <span id="dataCount">0</span></div>
+    <div>Selected text layers: <span id="layerCount">0</span></div>
+  </div>
+
+  <div class="options">
+    <label>
+      <input type="checkbox" id="randomize" />
+      Randomize
+    </label>
+
+    <label>
+      <input type="checkbox" id="loopData" />
+      Loop after end of list
+    </label>
+
+    <label>
+      <input type="checkbox" id="ignoreFirstLine" />
+      Skip first line
+    </label>
+
+    <label>
+      <input type="checkbox" id="insertEmptyLines" />
+      Insert empty lines
+    </label>
+  </div>
+  
+  <div class="buttons">
+    <button id="cancel">Cancel</button>
+    <button id="insert">Insert ⌘↵</button>
+  </div>
+
+  <script>
+    const dataEl = document.getElementById('data');
+    const ignoreFirstLineEl = document.getElementById('ignoreFirstLine');
+    const insertEmptyLinesEl = document.getElementById('insertEmptyLines');
+    const loopDataEl = document.getElementById('loopData');
+    const randomizeDataEl = document.getElementById('randomize');
+
+    const dataCountEl = document.getElementById('dataCount');
+    const layerCountEl = document.getElementById('layerCount');
+
+    // --- Focus textarea on load
+    window.onload = () => {
+      dataEl.focus();
+      updateDataCounter();
+    };
+
+    // --- Keyboard shortcut: Cmd/Ctrl + Enter = Insert
+    document.addEventListener('keydown', (e) => {
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const modifier = isMac ? e.metaKey : e.ctrlKey;
+
+      if (modifier && e.key === 'Enter') {
+        e.preventDefault();
+        insert();
+      }
+    });
+
+    // --- Update data counter on input or option change
+    dataEl.addEventListener('input', updateDataCounter);
+    ignoreFirstLineEl.addEventListener('change', updateDataCounter);
+    insertEmptyLinesEl.addEventListener('change', updateDataCounter);
+
+    function updateDataCounter() {
+      let rows = dataEl.value.split('\n');
+
+      if (ignoreFirstLineEl.checked) {
+        rows = rows.slice(1);
+      }
+
+      if (!insertEmptyLinesEl.checked) {
+        rows = rows.filter(row => row.trim() !== '');
+      }
+
+      dataCountEl.textContent = rows.length;
+    }
+
+    // --- Receive messages from code.js
+    window.onmessage = (event) => {
+      const message = event.data.pluginMessage;
+      if (!message) return;
+
+      if (message.type === 'loadSettings') {
+        const settings = message.settings || {};
+
+        ignoreFirstLineEl.checked = !!settings.ignoreFirstLine;
+        insertEmptyLinesEl.checked = !!settings.insertEmptyLines;
+        loopDataEl.checked = !!settings.loopData;
+        randomizeDataEl.checked = !!settings.randomize;
+
+        updateDataCounter();
+      }
+
+      if (message.type === 'selectionCount') {
+        layerCountEl.textContent = message.count;
+      }
+    };
+
+    // --- Buttons
+    document.getElementById('cancel').onclick = () => {
+      parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+    };
+
+    document.getElementById('insert').onclick = insert;
+
+    function insert() {
+      parent.postMessage(
+        {
+          pluginMessage: {
+            type: 'insert',
+            data: dataEl.value,
+            ignoreFirstLine: ignoreFirstLineEl.checked,
+            insertEmptyLines: insertEmptyLinesEl.checked,
+            loopData: loopDataEl.checked,
+            randomize: randomizeDataEl.checked
+          }
+        },
+        '*'
+      );
+    }
+  </script>
+</body>
+</html>
